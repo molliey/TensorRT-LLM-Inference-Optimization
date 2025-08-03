@@ -1,0 +1,250 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tensorrt-llm-inference
+  namespace: default
+  labels:
+    app: tensorrt-llm
+    component: inference-server
+    version: v1.0.0
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: tensorrt-llm
+      component: inference-server
+  template:
+    metadata:
+      labels:
+        app: tensorrt-llm
+        component: inference-server
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Node selection for GPU nodes
+      nodeSelector:
+        accelerator: nvidia-tesla-a100
+      
+      # Tolerations for GPU nodes
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      # Service account
+      serviceAccountName: tensorrt-llm-service-account
+      
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      # Init container for model preparation
+      initContainers:
+      - name: model-init
+        image: tensorrt-llm-inference:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          echo "Checking for TensorRT engine..."
+          if [ ! -f /app/engines/gpt2_optimized.engine ]; then
+            echo "Engine not found, building..."
+            python -c "
+            from models import GPT2Loader, ONNXExporter
+            from engine import TensorRTBuilder, TensorRTOptimizer
+            
+            # Load and export model
+            loader = GPT2Loader('gpt2')
+            model, tokenizer, config = loader.load_model()
+            
+            exporter = ONNXExporter(model, tokenizer)
+            onnx_path = exporter.export_to_onnx()
+            
+            # Build optimized engine
+            builder = TensorRTBuilder(precision='fp16')
+            optimizer = TensorRTOptimizer(enable_kv_cache=True, enable_flash_attention=True)
+            
+            engine_path = builder.build_engine_from_onnx(
+                onnx_path, 
+                '/app/engines/gpt2_optimized.engine'
+            )
+            print(f'Engine built: {engine_path}')
+            "
+          else
+            echo "Engine found, skipping build"
+          fi
+        volumeMounts:
+        - name: model-storage
+          mountPath: /app/models
+        - name: engine-storage
+          mountPath: /app/engines
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+            nvidia.com/gpu: 1
+      
+      containers:
+      - name: tensorrt-llm-server
+        image: tensorrt-llm-inference:latest
+        imagePullPolicy: IfNotPresent
+        
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        
+        env:
+        - name: ENGINE_PATH
+          value: "/app/engines/gpt2_optimized.engine"
+        - name: MODEL_NAME
+          value: "gpt2"
+        - name: MAX_BATCH_SIZE
+          value: "8"
+        - name: MAX_SEQUENCE_LENGTH
+          value: "1024"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: WORKERS
+          value: "1"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,utility"
+        
+        # Resource requirements
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "4"
+            nvidia.com/gpu: 1
+          limits:
+            memory: "16Gi"
+            cpu: "8"
+            nvidia.com/gpu: 1
+        
+        # Volume mounts
+        volumeMounts:
+        - name: model-storage
+          mountPath: /app/models
+          readOnly: true
+        - name: engine-storage
+          mountPath: /app/engines
+          readOnly: true
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: logs-volume
+          mountPath: /app/logs
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Startup probe for slow initialization
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12  # Allow up to 2 minutes for startup
+        
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      
+      # Volumes
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: tensorrt-model-pvc
+      - name: engine-storage
+        persistentVolumeClaim:
+          claimName: tensorrt-engine-pvc
+      - name: config-volume
+        configMap:
+          name: tensorrt-config
+      - name: logs-volume
+        emptyDir: {}
+      
+      # Restart policy
+      restartPolicy: Always
+      
+      # DNS policy
+      dnsPolicy: ClusterFirst
+      
+      # Termination grace period
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tensorrt-model-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tensorrt-engine-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tensorrt-llm-service-account
+  namespace: default

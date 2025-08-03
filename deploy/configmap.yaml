@@ -1,0 +1,190 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tensorrt-config
+  namespace: default
+  labels:
+    app: tensorrt-llm
+data:
+  model_config.yaml: |
+    model:
+      name: "gpt2"
+      type: "causal_lm"
+      architecture: "GPT2LMHeadModel"
+      vocab_size: 50257
+      n_positions: 1024
+      n_embd: 768
+      n_layer: 12
+      n_head: 12
+      intermediate_size: 3072
+      max_position_embeddings: 1024
+      
+    tokenizer:
+      name: "gpt2"
+      pad_token: "<|endoftext|>"
+      eos_token: "<|endoftext|>"
+      bos_token: "<|endoftext|>"
+      unk_token: "<|endoftext|>"
+      
+    paths:
+      model_cache: "/app/models/cache"
+      onnx_output: "/app/models/onnx"
+      engine_output: "/app/engines"
+
+  engine_config.yaml: |
+    tensorrt:
+      precision: "fp16"
+      max_workspace_size: 1073741824  # 1GB
+      max_batch_size: 8
+      max_sequence_length: 1024
+      
+    optimization:
+      enable_kv_cache: true
+      enable_flash_attention: true
+      kv_cache_block_size: 16
+      max_tokens: 8192
+      
+    profiles:
+      - name: "default"
+        input_shapes:
+          input_ids:
+            min: [1, 1]
+            opt: [4, 512]
+            max: [8, 1024]
+    
+    build_config:
+      optimization_level: 5
+      enable_tactic_heuristic: true
+      enable_timing_cache: true
+      
+    plugins:
+      - "LayerNormPlugin"
+      - "GeluPlugin"
+      - "AttentionPlugin"
+
+  server_config.yaml: |
+    server:
+      host: "0.0.0.0"
+      port: 8000
+      workers: 1
+      timeout_keep_alive: 30
+      
+    api:
+      max_request_size: 10485760  # 10MB
+      rate_limit_per_minute: 60
+      cors_origins: ["*"]
+      
+    inference:
+      default_max_new_tokens: 100
+      default_temperature: 1.0
+      default_top_k: 50
+      default_top_p: 0.9
+      max_batch_size: 8
+      batch_timeout_ms: 100
+      
+    monitoring:
+      enable_metrics: true
+      metrics_port: 8000
+      log_level: "INFO"
+      
+    caching:
+      enable_response_cache: false
+      cache_ttl_seconds: 300
+      max_cache_size: 1000
+
+  logging_config.yaml: |
+    version: 1
+    disable_existing_loggers: false
+    
+    formatters:
+      default:
+        format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+      detailed:
+        format: '%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(funcName)s - %(message)s'
+      json:
+        format: '{"timestamp": "%(asctime)s", "logger": "%(name)s", "level": "%(levelname)s", "message": "%(message)s"}'
+    
+    handlers:
+      console:
+        class: logging.StreamHandler
+        level: INFO
+        formatter: default
+        stream: ext://sys.stdout
+      
+      file:
+        class: logging.handlers.RotatingFileHandler
+        level: DEBUG
+        formatter: detailed
+        filename: /app/logs/tensorrt-llm.log
+        maxBytes: 10485760  # 10MB
+        backupCount: 5
+      
+      error_file:
+        class: logging.handlers.RotatingFileHandler
+        level: ERROR
+        formatter: json
+        filename: /app/logs/errors.log
+        maxBytes: 10485760  # 10MB
+        backupCount: 3
+    
+    loggers:
+      models:
+        level: DEBUG
+        handlers: [console, file]
+        propagate: false
+      
+      engine:
+        level: DEBUG
+        handlers: [console, file]
+        propagate: false
+      
+      server:
+        level: INFO
+        handlers: [console, file]
+        propagate: false
+      
+      benchmark:
+        level: INFO
+        handlers: [console, file]
+        propagate: false
+    
+    root:
+      level: INFO
+      handlers: [console, file, error_file]
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tensorrt-secrets
+  namespace: default
+  labels:
+    app: tensorrt-llm
+type: Opaque
+data:
+  # Add any secrets here (base64 encoded)
+  # api_key: <base64-encoded-api-key>
+  # database_url: <base64-encoded-database-url>
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nvidia-device-plugin-config
+  namespace: kube-system
+data:
+  config.yaml: |
+    version: v1
+    flags:
+      migStrategy: none
+      failOnInitError: true
+      nvidiaDriverRoot: /
+      plugin:
+        passDeviceSpecs: false
+        deviceListStrategy: envvar
+        deviceIDStrategy: uuid
+    sharing:
+      timeSlicing:
+        resources:
+        - name: nvidia.com/gpu
+          replicas: 2

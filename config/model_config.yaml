@@ -1,0 +1,113 @@
+# Model Configuration for TensorRT-LLM Inference
+
+model:
+  name: "gpt2"
+  type: "causal_lm"
+  architecture: "GPT2LMHeadModel"
+  
+  # Model parameters
+  vocab_size: 50257
+  n_positions: 1024
+  n_embd: 768
+  n_layer: 12
+  n_head: 12
+  intermediate_size: 3072
+  max_position_embeddings: 1024
+  
+  # Model variants (uncomment to use different models)
+  # name: "gpt2-medium"  # 345M parameters
+  # n_embd: 1024
+  # n_layer: 24
+  # n_head: 16
+  # intermediate_size: 4096
+  
+  # name: "gpt2-large"   # 774M parameters
+  # n_embd: 1280
+  # n_layer: 36
+  # n_head: 20
+  # intermediate_size: 5120
+  
+  # name: "gpt2-xl"      # 1558M parameters
+  # n_embd: 1600
+  # n_layer: 48
+  # n_head: 25
+  # intermediate_size: 6400
+
+tokenizer:
+  name: "gpt2"
+  pad_token: "<|endoftext|>"
+  eos_token: "<|endoftext|>"
+  bos_token: "<|endoftext|>"
+  unk_token: "<|endoftext|>"
+  
+  # Tokenizer settings
+  padding_side: "left"
+  truncation_side: "right"
+  add_special_tokens: true
+  
+  # Custom tokens (if needed)
+  special_tokens:
+    additional_special_tokens: []
+
+# File paths configuration
+paths:
+  model_cache: "./models/cache"
+  onnx_output: "./models/onnx"
+  engine_output: "./engines"
+  logs: "./logs"
+  checkpoints: "./checkpoints"
+  data: "./data"
+
+# Model loading configuration
+loading:
+  torch_dtype: "float16"  # float16, float32, bfloat16
+  device_map: "auto"      # auto, cpu, cuda:0, balanced
+  low_cpu_mem_usage: true
+  trust_remote_code: false
+  use_cache: true
+  
+  # Quantization settings (optional)
+  quantization:
+    enabled: false
+    method: "bitsandbytes"  # bitsandbytes, gptq, awq
+    bits: 8                 # 4, 8
+    group_size: 128
+    desc_act: false
+
+# Generation defaults
+generation:
+  max_new_tokens: 100
+  min_new_tokens: 1
+  do_sample: true
+  temperature: 1.0
+  top_k: 50
+  top_p: 0.9
+  repetition_penalty: 1.0
+  length_penalty: 1.0
+  no_repeat_ngram_size: 0
+  pad_token_id: 50256
+  eos_token_id: 50256
+  
+  # Beam search settings
+  num_beams: 1
+  early_stopping: false
+  
+  # Sampling strategies
+  typical_p: 1.0
+  epsilon_cutoff: 0.0
+  eta_cutoff: 0.0
+
+# Model optimization settings
+optimization:
+  # PyTorch optimizations
+  torch_compile: false
+  torch_compile_mode: "default"  # default, reduce-overhead, max-autotune
+  
+  # Memory optimizations
+  gradient_checkpointing: false
+  use_flash_attention: true
+  use_scaled_dot_product_attention: true
+  
+  # Inference optimizations
+  disable_dropout: true
+  eval_mode: true

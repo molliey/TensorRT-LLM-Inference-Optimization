@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.onnx
+*.plan
+*.log
+*.out
+*.pt
+venv/
+.env
+.cache/
+logs/
+*.tmp
+*.swp

@@ -1,0 +1,295 @@
+# FastAPI Server Configuration
+
+server:
+  # Basic server settings
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1                           # Number of worker processes
+  
+  # Uvicorn settings
+  uvicorn:
+    loop: "uvloop"                     # uvloop, asyncio
+    http: "httptools"                  # httptools, h11
+    reload: false                      # Auto-reload for development
+    reload_dirs: ["server/", "models/", "engine/"]
+    
+  # Timeouts
+  timeout_keep_alive: 30               # Keep-alive timeout
+  timeout_graceful_shutdown: 30        # Graceful shutdown timeout
+  
+  # Limits
+  limit_concurrency: 100               # Max concurrent requests
+  limit_max_requests: 10000            # Max requests before restart
+  
+  # Logging
+  log_level: "info"                    # debug, info, warning, error
+  access_log: true
+  log_config: "./config/logging_config.yaml"
+
+# API Configuration
+api:
+  # Request limits
+  max_request_size: 10485760           # 10MB in bytes
+  max_prompt_length: 2048              # Maximum prompt length in characters
+  max_generated_tokens: 2048           # Maximum tokens to generate
+  
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60            # Per IP address
+    burst_size: 10                     # Burst allowance
+    
+  # CORS settings
+  cors:
+    enabled: true
+    allow_origins: ["*"]               # Configure for production
+    allow_methods: ["GET", "POST", "OPTIONS"]
+    allow_headers: ["*"]
+    allow_credentials: true
+    max_age: 3600
+  
+  # Security
+  security:
+    api_key_required: false            # Enable API key authentication
+    api_keys: []                       # List of valid API keys
+    trusted_hosts: ["*"]               # Configure for production
+    
+  # Request/Response settings
+  response:
+    include_model_info: true
+    include_timing_info: true
+    include_token_count: true
+
+# Inference Configuration
+inference:
+  # Engine settings
+  engine_path: "./engines/gpt2_optimized.engine"
+  model_name: "gpt2"
+  tokenizer_name: "gpt2"
+  
+  # Batch processing
+  batch_processing:
+    max_batch_size: 8
+    batch_timeout_ms: 100              # Wait time before processing partial batch
+    enable_dynamic_batching: true
+    
+  # Generation defaults
+  generation_defaults:
+    max_new_tokens: 100
+    min_new_tokens: 1
+    temperature: 1.0
+    top_k: 50
+    top_p: 0.9
+    do_sample: true
+    repetition_penalty: 1.0
+    length_penalty: 1.0
+    
+  # Generation limits
+  generation_limits:
+    max_new_tokens: 2048
+    min_temperature: 0.1
+    max_temperature: 2.0
+    max_top_k: 100
+    max_top_p: 1.0
+    max_repetition_penalty: 2.0
+    
+  # Streaming settings
+  streaming:
+    enabled: true
+    chunk_size: 1                      # Tokens per chunk
+    buffer_size: 64                    # Buffer size for streaming
+    
+  # Memory management
+  memory:
+    max_sequence_length: 1024
+    kv_cache_size_gb: 4
+    gpu_memory_fraction: 0.9
+    
+  # Performance settings
+  performance:
+    enable_cuda_graph: false
+    enable_profiling: false
+    warmup_requests: 5                 # Number of warmup requests on startup
+
+# Monitoring Configuration
+monitoring:
+  # Metrics
+  metrics:
+    enabled: true
+    port: 8000                         # Same as server port
+    path: "/metrics"
+    include_system_metrics: true
+    include_gpu_metrics: true
+    
+  # Health checks
+  health:
+    enabled: true
+    path: "/health"
+    detailed: true                     # Include detailed system info
+    
+  # Prometheus metrics
+  prometheus:
+    enabled: true
+    metrics:
+      - "request_count"
+      - "request_duration"
+      - "generation_tokens"
+      - "inference_time"
+      - "queue_size"
+      - "gpu_utilization"
+      - "gpu_memory_usage"
+      - "error_count"
+
+# Caching Configuration
+caching:
+  # Response caching
+  response_cache:
+    enabled: false                     # Enable response caching
+    backend: "memory"                  # memory, redis, disk
+    ttl_seconds: 300                   # Time to live
+    max_size: 1000                     # Maximum cached responses
+    
+  # Model caching
+  model_cache:
+    enabled: true
+    cache_embeddings: true
+    cache_attention: false
+    
+  # Redis configuration (if using Redis backend)
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+    password: null
+    max_connections: 10
+
+# Background Tasks
+background_tasks:
+  # Cleanup tasks
+  cleanup:
+    enabled: true
+    interval_seconds: 300              # 5 minutes
+    max_memory_usage: 0.9              # 90% of available memory
+    
+  # Model optimization
+  optimization:
+    enabled: false
+    auto_optimize: false
+    optimization_interval: 3600        # 1 hour
+
+# Development Settings
+development:
+  # Debug mode
+  debug: false
+  
+  # Auto-reload
+  auto_reload: false
+  reload_includes: ["*.py", "*.yaml", "*.json"]
+  reload_excludes: ["*.pyc", "__pycache__"]
+  
+  # Testing
+  testing:
+    mock_inference: false
+    fixed_responses: false
+
+# Production Settings
+production:
+  # Security
+  security_headers: true
+  hide_server_header: true
+  
+  # SSL/TLS
+  ssl:
+    enabled: false
+    cert_file: null
+    key_file: null
+    
+  # Reverse proxy
+  reverse_proxy:
+    enabled: false
+    trusted_hosts: []
+    
+  # Resource limits
+  resource_limits:
+    max_cpu_percent: 80
+    max_memory_percent: 80
+    max_gpu_memory_percent: 90
+
+# Logging Configuration Reference
+logging:
+  version: 1
+  disable_existing_loggers: false
+  
+  formatters:
+    default:
+      format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    detailed:
+      format: '%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(funcName)s - %(lineno)d - %(message)s'
+    json:
+      format: '{"timestamp": "%(asctime)s", "logger": "%(name)s", "level": "%(levelname)s", "message": "%(message)s"}'
+  
+  handlers:
+    console:
+      class: logging.StreamHandler
+      level: INFO
+      formatter: default
+      stream: ext://sys.stdout
+    
+    file:
+      class: logging.handlers.RotatingFileHandler
+      level: DEBUG
+      formatter: detailed
+      filename: ./logs/server.log
+      maxBytes: 10485760               # 10MB
+      backupCount: 5
+    
+    error_file:
+      class: logging.handlers.RotatingFileHandler
+      level: ERROR
+      formatter: json
+      filename: ./logs/errors.log
+      maxBytes: 10485760               # 10MB
+      backupCount: 3
+      
+    metrics_file:
+      class: logging.handlers.RotatingFileHandler
+      level: INFO
+      formatter: json
+      filename: ./logs/metrics.log
+      maxBytes: 10485760               # 10MB
+      backupCount: 5
+  
+  loggers:
+    uvicorn:
+      level: INFO
+      handlers: [console, file]
+      propagate: false
+    
+    fastapi:
+      level: INFO
+      handlers: [console, file]
+      propagate: false
+    
+    server:
+      level: INFO
+      handlers: [console, file]
+      propagate: false
+    
+    inference:
+      level: INFO
+      handlers: [console, file, metrics_file]
+      propagate: false
+    
+    models:
+      level: DEBUG
+      handlers: [console, file]
+      propagate: false
+    
+    engine:
+      level: DEBUG
+      handlers: [console, file]
+      propagate: false
+  
+  root:
+    level: INFO
+    handlers: [console, file, error_file]

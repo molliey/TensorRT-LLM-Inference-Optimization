@@ -1,0 +1,195 @@
+# TensorRT Engine Configuration
+
+tensorrt:
+  # Basic settings
+  precision: "fp16"                    # fp16, fp32, int8, int4
+  max_workspace_size: 1073741824       # 1GB in bytes
+  max_batch_size: 8
+  max_sequence_length: 1024
+  
+  # Builder optimization level (0-5, higher = more optimization)
+  optimization_level: 5
+  
+  # DLA settings (for Jetson/Drive platforms)
+  dla:
+    enabled: false
+    core: 0
+    fallback_to_gpu: true
+  
+  # Precision settings
+  precision_config:
+    fp16:
+      enabled: true
+      prefer_precision_constraints: true
+    
+    int8:
+      enabled: false
+      calibration_cache: "./models/calibration.cache"
+      calibration_dataset: "./data/calibration_data.json"
+    
+    int4:
+      enabled: false
+      sparsity: 0.5
+
+# TensorRT-LLM specific optimizations
+optimization:
+  # KV Cache configuration
+  kv_cache:
+    enabled: true
+    block_size: 16                     # Tokens per block
+    max_tokens: 8192                   # Maximum tokens in cache
+    memory_fraction: 0.4               # Fraction of GPU memory for KV cache
+    
+    # Paged attention settings
+    paged_attention: true
+    page_size: 16
+    
+  # Flash Attention configuration
+  flash_attention:
+    enabled: true
+    causal: true
+    window_size: null                  # null for full attention
+    
+  # Layer optimizations
+  layer_optimizations:
+    fuse_layernorm: true
+    fuse_gelu: true
+    fuse_gemm: true
+    fuse_bias: true
+    fuse_residual: true
+    
+  # Weight optimizations
+  weight_optimizations:
+    weight_sharing: true
+    weight_quantization: false
+    
+  # Memory optimizations
+  memory_optimizations:
+    enable_context_fmha: true          # Fused multi-head attention
+    enable_generation_fmha: true
+    use_gpt_attention_plugin: true
+    use_gemm_plugin: true
+    use_layernorm_plugin: true
+    
+  # Performance optimizations
+  performance_optimizations:
+    enable_trt_overlap: true           # Overlap computation and memory transfer
+    use_cuda_graph: false              # CUDA graph optimization
+    max_num_tokens: null               # null for auto
+
+# Dynamic shape profiles
+profiles:
+  - name: "default"
+    input_shapes:
+      input_ids:
+        min: [1, 1]                    # [batch_size, sequence_length]
+        opt: [4, 512]                  # Optimal shape
+        max: [8, 1024]                 # Maximum shape
+      
+      attention_mask:
+        min: [1, 1]
+        opt: [4, 512]
+        max: [8, 1024]
+      
+      position_ids:
+        min: [1, 1]
+        opt: [4, 512]
+        max: [8, 1024]
+  
+  - name: "small_batch"
+    input_shapes:
+      input_ids:
+        min: [1, 1]
+        opt: [2, 256]
+        max: [4, 512]
+  
+  - name: "large_batch"
+    input_shapes:
+      input_ids:
+        min: [4, 1]
+        opt: [8, 512]
+        max: [16, 1024]
+
+# Build configuration
+build_config:
+  # Timing cache
+  timing_cache: "./engines/timing.cache"
+  enable_timing_cache: true
+  
+  # Tactic selection
+  enable_tactic_heuristic: true
+  tactic_sources:
+    - "cublas"
+    - "cublaslt"
+    - "cudnn"
+  
+  # Algorithm selection
+  algorithm_selection: "auto"           # auto, heuristic, profile_sharing
+  
+  # Sparsity
+  sparsity: false
+  sparse_weights: false
+  
+  # Safety
+  strict_types: false
+  int8_calibrator: null
+  
+  # Builder flags
+  builder_flags:
+    - "FP16"                           # Enable FP16 precision
+    - "PREFER_PRECISION_CONSTRAINTS"   # Prefer precision over speed
+    # - "INT8"                         # Enable INT8 precision
+    # - "SPARSE_WEIGHTS"               # Enable sparse weights
+    # - "DISABLE_TIMING_CACHE"         # Disable timing cache
+    
+  # Network flags
+  network_flags:
+    - "EXPLICIT_BATCH"                 # Use explicit batch dimension
+
+# Plugin configuration
+plugins:
+  # Custom plugins
+  custom_plugins:
+    enabled: false
+    plugin_paths: []
+  
+  # TensorRT-LLM plugins
+  tensorrt_llm_plugins:
+    gpt_attention_plugin: true
+    gemm_plugin: true
+    layernorm_plugin: true
+    lookup_plugin: true
+    lora_plugin: false
+    
+  # Plugin parameters
+  plugin_config:
+    gpt_attention:
+      num_heads: 12
+      head_size: 64
+      rotary_embedding: false
+      dense_bias: true
+    
+    gemm:
+      use_fp8: false
+      
+    layernorm:
+      eps: 1e-5
+
+# Engine serialization
+serialization:
+  save_timing_cache: true
+  save_engine_info: true
+  compress_weights: false
+  
+# Verification settings
+verification:
+  enabled: true
+  tolerance:
+    rtol: 1e-3
+    atol: 1e-3
+  
+  # Test inputs for verification
+  test_inputs:
+    batch_size: 1
+    sequence_length: 32
+    vocab_range: [0, 1000]
