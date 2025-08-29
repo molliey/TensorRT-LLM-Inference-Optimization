@@ -462,14 +462,6 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 - HuggingFace for Transformers library
 - FastAPI team for the excellent framework
 - The open-source AI community
-
-## 📞 Support
-
-- **Documentation**: [https://tensorrt-llm-inference-optimization.readthedocs.io/](https://tensorrt-llm-inference-optimization.readthedocs.io/)
-- **Issues**: [GitHub Issues](https://github.com/tensorrt-llm/inference-optimization/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/tensorrt-llm/inference-optimization/discussions)
-- **Email**: tensorrt-llm@example.com
-
 ---
 
 <div align="center">
