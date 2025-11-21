@@ -433,10 +433,6 @@ make html
 python -m http.server 8080 -d _build/html/
 ```
 
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
 ### Development Workflow
 
 1. Fork the repository
@@ -448,22 +444,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 7. Push to the branch: `git push origin feature/amazing-feature`
 8. Open a Pull Request
 
-### Reporting Issues
 
-Please report bugs and feature requests through [GitHub Issues](https://github.com/tensorrt-llm/inference-optimization/issues).
 
-## 📄 License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
-
-- NVIDIA TensorRT Team for TensorRT-LLM
-- HuggingFace for Transformers library
-- FastAPI team for the excellent framework
-- The open-source AI community
----
-
-<div align="center">
-  <strong>Built with ❤️ by the TensorRT-LLM Team</strong>
-</div>
